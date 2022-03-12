@@ -17,6 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -491,8 +492,11 @@ func TestPreCheck(t *testing.T) {
 		errMsg string
 	}
 
+	type prepare func(*testing.T)
+
 	testcases := []struct {
 		name string
+		prepare
 		args args
 		want want
 	}{
@@ -582,6 +586,142 @@ func TestPreCheck(t *testing.T) {
 			want: want{
 				errMsg: "provider not found",
 			},
+		},
+		{
+			name: "wrong value in environment variable RESOURCES_LIMITS_CPU",
+			prepare: func(t *testing.T) {
+				t.Setenv("RESOURCES_LIMITS_CPU", "abcde")
+			},
+			args: args{
+				r: r,
+				configuration: &v1beta2.Configuration{
+					ObjectMeta: v1.ObjectMeta{
+						Name: "abc",
+					},
+					Spec: v1beta2.ConfigurationSpec{
+						HCL: "bbb",
+					},
+				},
+				meta: &TFConfigurationMeta{
+					ConfigurationCMName: "abc",
+					ProviderReference: &crossplane.Reference{
+						Namespace: "default",
+						Name:      "default",
+					},
+				},
+			},
+			want: want{
+				errMsg: "failed to parse env variable RESOURCES_LIMITS_CPU into resource.Quantity",
+			},
+		},
+		{
+			name: "wrong value in environment variable RESOURCES_LIMITS_MEMORY",
+			prepare: func(t *testing.T) {
+				t.Setenv("RESOURCES_LIMITS_MEMORY", "xxxx5Gi")
+			},
+			args: args{
+				r: r,
+				configuration: &v1beta2.Configuration{
+					ObjectMeta: v1.ObjectMeta{
+						Name: "abc",
+					},
+					Spec: v1beta2.ConfigurationSpec{
+						HCL: "bbb",
+					},
+				},
+				meta: &TFConfigurationMeta{
+					ConfigurationCMName: "abc",
+					ProviderReference: &crossplane.Reference{
+						Namespace: "default",
+						Name:      "default",
+					},
+				},
+			},
+			want: want{
+				errMsg: "failed to parse env variable RESOURCES_LIMITS_MEMORY into resource.Quantity",
+			},
+		},
+		{
+			name: "wrong value in environment variable RESOURCES_REQUESTS_CPU",
+			prepare: func(t *testing.T) {
+				t.Setenv("RESOURCES_REQUESTS_CPU", "ekiadasdflksas")
+			},
+			args: args{
+				r: r,
+				configuration: &v1beta2.Configuration{
+					ObjectMeta: v1.ObjectMeta{
+						Name: "abc",
+					},
+					Spec: v1beta2.ConfigurationSpec{
+						HCL: "bbb",
+					},
+				},
+				meta: &TFConfigurationMeta{
+					ConfigurationCMName: "abc",
+					ProviderReference: &crossplane.Reference{
+						Namespace: "default",
+						Name:      "default",
+					},
+				},
+			},
+			want: want{
+				errMsg: "failed to parse env variable RESOURCES_REQUESTS_CPU into resource.Quantity",
+			},
+		},
+		{
+			name: "wrong value in environment variable RESOURCES_REQUESTS_MEMORY",
+			prepare: func(t *testing.T) {
+				t.Setenv("RESOURCES_REQUESTS_MEMORY", "123x456")
+			},
+			args: args{
+				r: r,
+				configuration: &v1beta2.Configuration{
+					ObjectMeta: v1.ObjectMeta{
+						Name: "abc",
+					},
+					Spec: v1beta2.ConfigurationSpec{
+						HCL: "bbb",
+					},
+				},
+				meta: &TFConfigurationMeta{
+					ConfigurationCMName: "abc",
+					ProviderReference: &crossplane.Reference{
+						Namespace: "default",
+						Name:      "default",
+					},
+				},
+			},
+			want: want{
+				errMsg: "failed to parse env variable RESOURCES_REQUESTS_MEMORY into resource.Quantity",
+			},
+		},
+		{
+			name: "correct value of resources setting in environment variable",
+			prepare: func(t *testing.T) {
+				t.Setenv("RESOURCES_LIMITS_CPU", "10m")
+				t.Setenv("RESOURCES_LIMITS_MEMORY", "10Mi")
+				t.Setenv("RESOURCES_REQUESTS_CPU", "100")
+				t.Setenv("RESOURCES_REQUESTS_MEMORY", "5Gi")
+			},
+			args: args{
+				r: r,
+				configuration: &v1beta2.Configuration{
+					ObjectMeta: v1.ObjectMeta{
+						Name: "abc",
+					},
+					Spec: v1beta2.ConfigurationSpec{
+						HCL: "bbb",
+					},
+				},
+				meta: &TFConfigurationMeta{
+					ConfigurationCMName: "abc",
+					ProviderReference: &crossplane.Reference{
+						Namespace: "default",
+						Name:      "default",
+					},
+				},
+			},
+			want: want{},
 		},
 	}
 
@@ -857,6 +997,46 @@ func TestAssembleTerraformJob(t *testing.T) {
 	containers := job.Spec.Template.Spec.InitContainers
 	assert.Equal(t, containers[0].Image, "c")
 	assert.Equal(t, containers[1].Image, "d")
+}
+
+func TestAssembleTerraformJobWithResourcesSetting(t *testing.T) {
+	quantityLimitsCPU, _ := resource.ParseQuantity("10m")
+	quantityLimitsMemory, _ := resource.ParseQuantity("10Mi")
+	quantityRequestsCPU, _ := resource.ParseQuantity("100m")
+	quantityRequestsMemory, _ := resource.ParseQuantity("5Gi")
+	meta := &TFConfigurationMeta{
+		Name:                "a",
+		ConfigurationCMName: "b",
+		BusyboxImage:        "c",
+		GitImage:            "d",
+		Namespace:           "e",
+		TerraformImage:      "f",
+		RemoteGit:           "g",
+
+		ResourcesLimitsCPU:              "10m",
+		ResourcesLimitsCPUQuantity:      quantityLimitsCPU,
+		ResourcesLimitsMemory:           "10Mi",
+		ResourcesLimitsMemoryQuantity:   quantityLimitsMemory,
+		ResourcesRequestsCPU:            "100m",
+		ResourcesRequestsCPUQuantity:    quantityRequestsCPU,
+		ResourcesRequestsMemory:         "5Gi",
+		ResourcesRequestsMemoryQuantity: quantityRequestsMemory,
+	}
+
+	job := meta.assembleTerraformJob(TerraformApply)
+	initContainers := job.Spec.Template.Spec.InitContainers
+	assert.Equal(t, initContainers[0].Image, "c")
+	assert.Equal(t, initContainers[1].Image, "d")
+
+	container := job.Spec.Template.Spec.Containers[0]
+	limitsCPU := container.Resources.Limits["cpu"]
+	limitsMemory := container.Resources.Limits["memory"]
+	requestsCPU := container.Resources.Requests["cpu"]
+	requestsMemory := container.Resources.Requests["memory"]
+	assert.Equal(t, "10m", limitsCPU.String())
+	assert.Equal(t, "10Mi", limitsMemory.String())
+	assert.Equal(t, "100m", requestsCPU.String())
+	assert.Equal(t, "5Gi", requestsMemory.String())
 }
 
 func TestTfStatePropertyToToProperty(t *testing.T) {
