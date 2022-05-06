@@ -703,6 +703,14 @@ func (meta *TFConfigurationMeta) assembleTerraformJob(executionType TerraformExe
 			MountPath: BackendVolumeMountPath,
 		},
 	}
+	backendSecretMounts := make([]v1.VolumeMount, 0)
+	for secretName := range meta.BackendSecretMap {
+		backendSecretMounts = append(backendSecretMounts, v1.VolumeMount{
+			Name:      secretName,
+			MountPath: "/var/" + secretName,
+			ReadOnly:  true,
+		})
+	}
 
 	// prepare local Terraform .tf files
 	initContainer = v1.Container{
@@ -747,7 +755,7 @@ func (meta *TFConfigurationMeta) assembleTerraformJob(executionType TerraformExe
 			"-c",
 			"terraform init",
 		},
-		VolumeMounts: initContainerVolumeMounts,
+		VolumeMounts: append(initContainerVolumeMounts, backendSecretMounts...),
 	}
 	initContainers = append(initContainers, tfPreApplyInitContainer)
 
@@ -761,12 +769,8 @@ func (meta *TFConfigurationMeta) assembleTerraformJob(executionType TerraformExe
 			MountPath: InputTFConfigurationVolumeMountPath,
 		},
 	}
-	for secretName := range meta.BackendSecretMap {
-		containerMountPointList = append(containerMountPointList, v1.VolumeMount{
-			Name:      secretName,
-			MountPath: "/var/" + secretName,
-		})
-	}
+	containerMountPointList = append(containerMountPointList, backendSecretMounts...)
+
 	container := v1.Container{
 		Name:            terraformContainerName,
 		Image:           meta.TerraformImage,
