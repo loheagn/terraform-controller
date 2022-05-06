@@ -1877,7 +1877,7 @@ func TestCheckWhetherConfigurationChanges(t *testing.T) {
 func TestTFConfigurationMeta_prepareBackendSecretList(t *testing.T) {
 	type args struct {
 		srcSecretList     []*corev1.Secret
-		backendSecretList []*tfcfg.BackendSecretRef
+		backendSecretList []*tfcfg.BackendConfSecretRef
 	}
 
 	builcK8SClientWithSecret := func(secretList []*corev1.Secret) client.WithWatch {
@@ -1904,7 +1904,7 @@ func TestTFConfigurationMeta_prepareBackendSecretList(t *testing.T) {
 			Data: map[string][]byte{"k2": []byte("something else")},
 		},
 	}
-	secretList := []*tfcfg.BackendSecretRef{
+	secretList := []*tfcfg.BackendConfSecretRef{
 		{
 			Name: "a",
 			SecretRef: &crossplane.SecretKeySelector{

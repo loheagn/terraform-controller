@@ -707,7 +707,7 @@ func (meta *TFConfigurationMeta) assembleTerraformJob(executionType TerraformExe
 	for secretName := range meta.BackendSecretMap {
 		backendSecretMounts = append(backendSecretMounts, v1.VolumeMount{
 			Name:      secretName,
-			MountPath: "/var/" + secretName,
+			MountPath: tfcfg.BackendConfSecretPodPath(secretName),
 			ReadOnly:  true,
 		})
 	}
@@ -1099,7 +1099,7 @@ func (meta *TFConfigurationMeta) createOrUpdateConfigMap(ctx context.Context, k8
 	return nil
 }
 
-func (meta *TFConfigurationMeta) prepareBackendSecretList(ctx context.Context, k8sClient client.Client, backendSecretList []*tfcfg.BackendSecretRef) error {
+func (meta *TFConfigurationMeta) prepareBackendSecretList(ctx context.Context, k8sClient client.Client, backendSecretList []*tfcfg.BackendConfSecretRef) error {
 	secretMap := make(map[string][]string)
 	for _, secretRef := range backendSecretList {
 		secretMap[secretRef.Name] = append(secretMap[secretRef.Name], secretRef.SecretRef.Key)
